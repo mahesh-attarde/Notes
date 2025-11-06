@@ -10,3 +10,9 @@
 ```
 --compile-commands-dir=${workspaceFolder}/build/compile_commands.json
 ```
+
++ Open VSCODE with remote machine folder
+  Make sure host entry is present vscode sshconfig
+```
+code --folder-uri=vscode-remote://ssh-remote+myhost/mnt/drive/mahesh
+```
