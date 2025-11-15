@@ -22,3 +22,8 @@
 # Tools
 
 
+# GPU Programming
+https://github.com/julienokumu/100DaysOfGPUProgramming
+https://github.com/dylangchapman/cuda-100days
+
+
