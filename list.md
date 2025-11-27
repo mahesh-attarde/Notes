@@ -23,7 +23,9 @@
 
 
 # GPU Programming
-https://github.com/julienokumu/100DaysOfGPUProgramming
-https://github.com/dylangchapman/cuda-100days
+[GPU100](https://github.com/julienokumu/100DaysOfGPUProgramming)
+[CUDA100](https://github.com/dylangchapman/cuda-100days)
 
+# AMX
+[Examples](https://github.com/sashi0034/amx-basic-example/tree/main)
 
