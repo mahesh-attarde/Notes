@@ -1,5 +1,13 @@
 # GIT 
 
+## GET BRANCH
++ Pull Existing Branch in Local
+```
+git fetch origin mytopic
+git branch mytopic FETCH_HEAD
+git checkout mytopic
+```
+
 ## GIT PUSH
 + Push local branch to remote origin
   `git push -u origin branchname`
