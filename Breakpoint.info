@@ -1,0 +1,20 @@
+[DAG Builder] SelectionDAGBuilder::visit
+[DAG Legalizer] SelectionDAGLegalize::LegalizeOp LegalizeDAG.cpp
+[DAG Lowering] SelectionDAGISel::CodeGenAndEmitDAG
+[DAG ISEL] X86DAGToDAGISel::Select X86ISelDAGToDAG.cpp
+[DAG ISEL] SelectionDAGISel::SelectAllBasicBlocks SelectionDAGISel.cpp
+[DAG ISEL] SelectionDAGISel::SelectBasicBlock SelectionDAGISel.cpp
+[DAG ISEL] SelectionDAGISel::CodeGenAndEmitDAG SelectionDAGISel.cpp
+[DAG ISEL] SelectionDAGISelPass::run SelectionDAGISel.cpp
+[Scheduler] ScheduleDAGInstrs::startBlock
+[Scheduler] MachineSchedulerLegacy::runOnMachineFunction MachineFunctionPass.cpp
+[Scheduler] MachineScheduler::runOnMachineFunction  
+[Scheduler PRERA] ScheduleDAGSDNodes::Run ScheduleDAGSDNodes.cpp
+[DAG to MIR] InstrEmitter::EmitNode
+[DAG to MIR] InstrEmitter::EmitMachineNode
+[GISEL] RegBankSelect::runOnMachineFunction  RegBankSelect.cpp
+[GISEL] RegBankSelect::assignInstr RegBankSelect.cpp
+[GISEL ISEL] InstructionSelect::selectMachineFunction InstructionSelectc.cpp
+[PSEUDO MIR] X86InstrInfo::expandPostRAPseudo X86InstrInfo.cpp
+[AsmParser] X86AsmParser::parseInstruction X86AsmParser.cpp
+[AsmParser] X86AsmParser::parseOperand X86AsmParser.cpp
