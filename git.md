@@ -57,6 +57,10 @@ git stash show stash@{0} --patch
 git stash branch test_2 stash@{0}
 ```
 
+# Git remote
++ Add remote
+  `git remote add origin https://github.com/username/repository.git`
+
 # GIT LOG
 + Git Long oneline color full
   `git log --pretty="%C(Yellow)%h  %C(reset)%ad (%C(Green)%cr%C(reset))%x09 %C(Cyan)%an: %C(reset)%s" --date=short `
