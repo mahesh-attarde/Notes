@@ -785,18 +785,404 @@ This is a “cost model” in the sense of **estimating profitability** for allo
 ---
 
 ## 7) Instruction Selection / Pattern “Cost” Heuristics (ISel)
+# Instruction Selection Cost Model
 
-### What it is
-During instruction selection (SelectionDAG / GlobalISel), LLVM chooses among patterns.
-Some patterns are annotated/compared by:
-- legality (supported by target)
-- selectability (simpler/fewer instructions)
-- pattern cost heuristics (prefer fewer ops, avoid expensive sequences)
+costs come from a mix of:
+- legality and type-lowering decisions,
+- pattern/predicate priority and complexity,
+- per-target heuristics about “cheap” instructions and folds,
+- and (sometimes) explicit or implicit “cost” comparisons.
 
-### Example: choose LEA vs ADD/MUL sequence on x86
-Addressing modes can fold scales and adds:
-- `lea rax, [rbx + rcx*4 + 8]` may replace several arithmetic ops.
-ISel tries to pick the cheaper single instruction pattern where legal.
+**legality** first, then by **cost/profitability heuristics**.
+---
+
+
+## What “cost modelling” means *in ISel context*
+
+In ISel, cost modelling is mostly about choosing among **multiple legal lowerings**.
+
+Typical dimensions:
+1. **Instruction count / pattern complexity**
+2. **Microarchitectural cost hints** (latency/throughput/resource usage; more prominent post-ISel in scheduling)
+3. **Code size** (sometimes prefer shorter encodings)
+4. **Folding opportunities** (combine ops into one instruction)
+5. **Register pressure / constraints** (special regs, partial regs, flag dependencies)
+6. **Addressing modes** (can we fold scales/offsets)
+7. **Vector width and shuffle complexity** (permute costs differ a lot)
+
+*prefer patterns that produce fewer / simpler instructions and enable folding.*
+
+---
+
+## Generic cost modelling mechanisms used during ISel
+
+### Legality and type legalization as a “cost signal”
+Before comparing two patterns, LLVM must ensure operations are **legal** on the target:
+- If an operation/type is illegal, LLVM must **expand** or **legalize** it (split, widen, scalarize, libcall).
+- This expansion is effectively a huge cost penalty.
+
+**Example (generic): illegal i128 multiply**
+LLVM IR:
+```llvm
+%p = mul i128 %a, %b
+```
+If the target has no native i128 multiply:
+- ISel/legalizer expands into multiple i64 multiplies and adds (long sequence).
+- Even without explicit “cost numbers,” legality drives the outcome:
+  - “native single instruction” (if exists) is chosen
+  - otherwise “expanded sequence” is the only legal path
+
+**Takeaway:** In ISel, *“legal vs illegal” often dominates cost decisions.*
+
+---
+
+### Pattern selection: “more specific / more complex” often wins
+In SelectionDAG ISel, TableGen patterns are matched. Patterns have:
+- predicates (`SubtargetFeature` checks)
+- complexity ordering and specificity
+- sometimes explicit “AddedComplexity”
+
+In GlobalISel, the selector similarly chooses from legal patterns/instruction mappings and prefers more constrained matches.
+
+**Example (generic): fused multiply-add**
+IR:
+```llvm
+%r = fadd float (fmul float %a, %b), %c
+```
+If target has FMA:
+- prefer one `fma` instruction
+Else:
+- select `mul` then `add`
+
+This is “cost modelling” via:
+- fewer instructions,
+- better precision semantics (if allowed),
+- and a pattern that only exists when features allow.
+
+---
+
+### Combiner phases around ISel (pre-isel and post-isel)
+Cost modelling in ISel is also influenced by:
+- IR combines before ISel (InstCombine, DAGCombine, MachineCombiner)
+- target-specific DAG combines (e.g., fold constants, address patterns)
+- post-isel peepholes
+
+These combines often apply rules like:
+- *replace expensive op with cheaper sequence*
+- *fold ops into addressing modes*
+- *choose shorter or faster pattern*
+
+---
+
+### Branch vs select vs conditional move
+A classic “cost” decision (sometimes earlier than ISel, but strongly target-shaped):
+
+IR:
+```llvm
+%r = select i1 %cond, i32 %x, i32 %y
+```
+
+Possible lowerings:
+- conditional move (`cmov`) style instruction
+- branch + phi (control flow)
+
+Generic heuristics consider:
+- target support for cmov/predication
+- predicted branch probability (if known)
+- code size and pipeline effects
+
+Often, the final mapping is done in or near ISel because it’s target-dependent.
+
+---
+
+## X86-specific ISel cost modelling 
+X86 is an excellent case study because it offers:
+- rich addressing modes
+- many vector shuffle instructions
+- special flag dependencies (`EFLAGS`)
+- multiple instruction forms for the same operation (reg-reg, reg-mem, mem-reg)
+- `LEA` as a “free-ish” arithmetic instruction in many contexts
+- `CMOV` and `SETcc` patterns
+- AVX/AVX2 lane behavior and AVX-512 masking
+
+**choosing the best instruction form** and **maximizing folding**.
+
+---
+
+##  Key examples
+
+### Addressing modes and folding: “free” arithmetic via mem operands
+
+X86 can encode memory operands like:
+```
+[base + index*scale + disp]
+```
+
+#### Example A: fold GEP into a load/store
+IR-like intent:
+```c
+x = *(int*)(base + i*4 + 16);
+```
+
+Naive instruction sequence:
+- `imul` to scale `i`
+- `add` base
+- `add` disp
+- `load`
+
+X86 ISel often produces:
+- a single `mov` (load) using a complex addressing mode:
+  - `mov eax, dword ptr [rdi + rsi*4 + 16]`
+
+**Cost model behavior:**
+- Folding address computation into the memory op reduces instruction count and register usage.
+- X86 ISel strongly prefers patterns that enable such folds.
+
+#### Example B: LEA for arithmetic without affecting flags
+If IR needs:
+```c
+t = a + b*4 + 8;
+```
+X86 may use:
+- `lea rax, [rdi + rsi*4 + 8]`
+
+**Why LEA is “cheap” in X86 modelling:**
+- Often single instruction
+- Doesn’t clobber flags (unlike `add`/`sub`)
+- Great for address-like arithmetic
+
+So ISel frequently prefers LEA-based patterns for add+mul-by-constant combinations.
+
+---
+
+### Reg-reg vs reg-mem forms: fewer instructions vs hidden costs
+
+X86 allows many ops with a memory operand:
+- `add eax, [mem]` (load + add in one instruction)
+
+#### Example: add with load folded
+IR:
+```llvm
+%v = load i32, ptr %p
+%r = add i32 %v, %x
+```
+
+Possible machine forms:
+1. separate load then add:
+   - `mov eax, [p]`
+   - `add eax, x`
+2. folded memory operand:
+   - `add eax, [p]`
+
+**Cost modelling tradeoff:**
+- Folding reduces instruction count and register pressure.
+- But it also can:
+  - create memory dependencies in ALU ops,
+  - reduce scheduling flexibility,
+  - sometimes be slower on specific microarchitectures.
+
+LLVM’s X86 backend generally still prefers folds when profitable, but may avoid them in some scenarios (e.g., when it blocks other combines or affects codegen patterns).
+
+---
+
+### Flags (EFLAGS) as a constraint cost
+
+Many X86 integer ops set flags implicitly. Flags are a limited resource:
+- using them can create false dependencies
+- can restrict scheduling and register allocation
+
+#### Example: compare + branch vs arithmetic setting flags
+IR:
+```llvm
+%cmp = icmp slt i32 %a, %b
+br i1 %cmp, label %T, label %F
+```
+
+X86 lowering:
+- likely uses `cmp` (sets flags) then `jl` (consumes flags)
+
+Now consider if an arithmetic op that sets flags is between cmp and branch:
+- it may clobber flags → extra compare needed
+
+**Cost modelling impact:**
+- ISel tries to choose instruction sequences that:
+  - avoid unnecessary flag clobbers
+  - or fuse compare+branch patterns efficiently
+- Sometimes prefers `lea` over `add` to avoid flags clobbering if flags are needed soon.
+
+---
+
+### Select lowering: `cmov` vs branch
+
+IR:
+```llvm
+%r = select i1 %c, i32 %x, i32 %y
+```
+
+On X86 with CMOV:
+- `cmov` can implement select without a branch.
+
+However, `cmov` is not always best:
+- if `%c` is highly predictable, a branch might be cheaper
+- `cmov` can force both `%x` and `%y` computations to happen eagerly
+
+**ISel cost modelling:**
+- often uses heuristics:
+  - size/simplicity
+  - whether operands are cheap
+  - probability info if available
+- final choice can be influenced by later passes too
+
+---
+
+### Multiplication by constant: IMUL vs shifts/adds vs LEA
+
+IR:
+```llvm
+%r = mul i32 %x, 5
+```
+
+Possible lowerings on X86:
+- `imul reg, reg, 5`
+- `lea reg, [x + x*4]` (x + 4x = 5x)
+- `shl` + `add` sequence
+
+**X86 modelling commonly prefers:**
+- `lea` for small constant multipliers where it fits the addressing form
+- `imul` for general constants or when LEA pattern not possible/beneficial
+
+**Cost factors:**
+- instruction count
+- latency/throughput (varies by uarch)
+- flags clobbering (LEA does not clobber flags)
+
+---
+
+### Vector shuffle selection: SSE/AVX/AVX2/AVX-512 instruction choice
+
+IR vector shuffle:
+```llvm
+%r = shufflevector <8 x i32> %a, <8 x i32> %b, <8 x i32> <...mask...>
+```
+
+On X86, there are many shuffle-like instructions:
+- `pshufd`, `pshufb`, `unpck*`, `palignr`, `blend*`
+- AVX/AVX2: `vperm2f128`, `vpermd`, `vpshufb` (lane restrictions)
+- AVX-512: `vpermt2*`, `vpermps`, plus masking
+
+**Cost modelling in ISel:**
+- choose the instruction (or sequence) that implements the shuffle mask cheapest
+- avoid cross-lane permutations when possible (AVX2 lane split)
+- prefer instructions available under the active subtarget features
+
+**Practical outcome:**
+- the same IR shuffle mask can lower to:
+  - one instruction under AVX-512
+  - multiple instructions under AVX2
+  - even more under SSE2
+
+That “difference” is a form of cost modelling driven by feature availability and pattern complexity.
+
+---
+
+## 6) How TTI relates to ISel cost modelling (and where the boundary is)
+
+TTI is mainly used by **IR passes** before ISel. But the relationship is important:
+
+- IR transformations guided by TTI (e.g., vectorization, unrolling) create IR patterns.
+- ISel then chooses the best X86 instructions for those patterns.
+
+So you can think of a two-level system:
+
+1. **TTI cost model (IR-level)** predicts:
+   - “if we create this vector shuffle / gather / masked op, will it be expensive on X86?”
+2. **ISel cost heuristics (lowering-level)** decide:
+   - “given that we have this shuffle, which exact X86 instruction(s) is cheapest under SSE/AVX/AVX-512?”
+
+### Example: TTI discourages expensive shuffles, ISel still must implement them
+- If a transform introduces a complex `shufflevector`,
+  - TTI might have been overly optimistic or forced by legality.
+- ISel then picks among X86 shuffle instructions (or sequences), but it cannot avoid the fundamental cost.
+
+**Takeaway:** Good TTI modelling reduces the chance that ISel ends up generating shuffle-heavy slow code.
+
+---
+
+## Worked examples: end-to-end view (IR choice → X86 ISel choice)
+
+### Example 1: Scalar address arithmetic vs folded memory operand
+
+#### Source intent
+```c
+int t = base[i*4 + 4];
+```
+
+#### IR-ish
+- compute index scale
+- gep
+- load
+
+#### X86 ISel preference
+- fold all into one memory operand:
+  - `mov eax, [rdi + rsi*16 + 16]` (example form)
+
+**Cost logic:**
+- fewer instructions
+- fewer temporary registers
+- better code size
+
+---
+
+### Example 2: `select` lowering
+
+#### IR
+```llvm
+%r = select i1 %c, i32 %x, i32 %y
+```
+
+#### X86 choices
+- `cmov` sequence (branchless)
+- branch + phi (control flow)
+
+**Cost logic:**
+- `cmov`: good when branch unpredictable / operands already computed
+- branch: good when condition predictable and one side cheap to skip
+
+---
+
+### Example 3: Multiply by 3
+
+#### IR
+```llvm
+%r = mul i64 %x, 3
+```
+
+#### X86 choices
+- `lea rax, [rdi + rdi*2]`  (x + 2x)
+- `imul rax, rdi, 3`
+
+**Cost logic:**
+- LEA often preferred:
+  - single instruction
+  - no flags
+  - good throughput on many CPUs
+
+---
+
+### Example 4: Vector permute availability changes everything
+
+#### IR
+A complex permute on `<16 x i32>`
+
+- Under AVX2:
+  - may require multiple instructions and lane-crossing ops
+- Under AVX-512:
+  - might be a single permute with masks
+
+**Cost logic:**
+- ISel picks the cheapest legal instruction(s) available.
+- Earlier, TTI would also have priced that permute differently and could influence whether the transform happens at all.
+
 
 ---
 
