@@ -6,6 +6,6 @@
 # CPU Perf
 + [Andi kleen perf](https://www.halobates.de/)
 + [Automatic Program Tuning](https://opentuner.org/tutorial/pldi2015/)
-  
++ [Cache Friendly Binary Search](https://algorithmica.org/en/eytzinger)  
 # Compiler Optimizations
 + [Control flow meld](https://github.com/charitha22/llvm-project-codesize/commits/cfm-dev/)
