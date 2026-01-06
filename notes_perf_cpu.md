@@ -39,6 +39,6 @@
     ```
     ./pmu-tools/toplev.py --core S0-C0 -l3 -v --no-desc taskset -c 0 ./app.exe
     ```
-+ Tuning Intel CPU
++ Tuning Intel CPU cache usage
    - Optimization Manual Chapter  Optimizing Cache usage.
    - Chapter on Using Performance Monitering Events is super helpful, i wonder why it was placed last since for correct profiling we need it before other chapters(solutions)
