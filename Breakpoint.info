@@ -18,3 +18,4 @@
 [PSEUDO MIR] X86InstrInfo::expandPostRAPseudo X86InstrInfo.cpp
 [AsmParser] X86AsmParser::parseInstruction X86AsmParser.cpp
 [AsmParser] X86AsmParser::parseOperand X86AsmParser.cpp
+[TWO ADDRESS/  LEAVE SSA] TwoAddressInstructionImpl::run TwoAddressInstructionPass.cpp
