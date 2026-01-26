@@ -1,5 +1,6 @@
 [DAG Builder] SelectionDAGBuilder::visit
 [DAG Legalizer] SelectionDAGLegalize::LegalizeOp LegalizeDAG.cpp
+[DAG Vector Legalize Operation] VectorLegalizer::LegalizeOp LegalizeVectorOps.cpp
 [DAG Lowering] SelectionDAGISel::CodeGenAndEmitDAG
 [DAG ISEL] X86DAGToDAGISel::Select X86ISelDAGToDAG.cpp
 [DAG ISEL] SelectionDAGISel::SelectAllBasicBlocks SelectionDAGISel.cpp
