@@ -4,7 +4,8 @@
 + https://gcc.gnu.org/onlinedocs/gcc/Invoking-GCC.html
 + https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
 + How to repro bug FE/MIDDLE END /BE with LTO and Windows https://llvm.org/docs/HowToSubmitABug.html
-  
+# LLVM ENABLE CRASH DIAGNOSTIC
++ `export LLVM_ENABLE_DUMP=1`
 # Print All passes enabled
 ```
 $opt=-O0
@@ -102,7 +103,6 @@ dot -Tpdf cfg.dot -o cfg.pdf
 `clang -Xlinker -plugin-opt=-print-before-all   -Xlinker -plugin-opt=-filter-print-funcs=KERNEL_FUNC`
 # Same as above but list
 `clang -Wl,-mllvm,-print-after-all -Wl,-mllvm,-filter-print-funcs=KERNEL_FUNC`
-# Dump LTO intermediate files
 
 # Opt Reports
 ```
@@ -137,10 +137,19 @@ llc test.ll  -print-changed
 # Machine Block Placement 
 + https://github.com/llvm-mirror/llvm/blob/master/lib/CodeGen/MachineBlockPlacement.cpp
 
+# LTO Debugging LD + plugin GOLD/BFD (TODO)
++  Dump LTO IRs 
+  `clang -flto -Wl,-plugin-opt=save-temps`
++ Make the crash produce a reproducible artifact
+  `clang++ -flto -fuse-ld=lld -Wl,--reproduce=./lto-repro.tar`
++ Thin LTO
+  `-Wl,--plugin-opt=thinlto-save-temps`
 # Windows Specific
 # lld-linker Diagnostics
 `export FORCE_LLD_DIAGNOSTICS_CRASH=1`
 
+# CRASH LOG SYMBOLIZE  (TODO)
+ `export LLVM_SYMBOLIZER_PATH=/path/to/llvm-symbolizer`
 
 ## LLVM-MCA
 - https://llvm.org/docs/CommandGuide/llvm-mca.html
