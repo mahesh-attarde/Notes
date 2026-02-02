@@ -1,5 +1,11 @@
 ## Notes on CPU Perf Investigations/tools/recipes
 
+###  TMA using PERF
++ CPU BOUND PROBLEMS only https://github.com/andikleen/pmu-tools/wiki/toplev-manual
++ CPU utilization is in question
++ Argument https://github.com/andikleen/pmu-tools/wiki/toplev-manual#argument-reference
++ Profiling + Plotting 
+  
 ### Memory Profiling on CPU
 + Cache Specs 
    - Linux
