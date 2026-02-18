@@ -4,7 +4,8 @@
 + [systomlic matmul](https://www.telesens.co/2018/07/30/systolic-architectures/)
 + [Mat Mul Cache](https://srishti-git1110.github.io/blog/)
 + [CPU mat mul](https://siboehm.com/articles/22/Fast-MMM-on-CPU)
-  
++ [Parallelsim in Transformers](https://ailzhang.github.io/) Effcient Pytorch Author
++   
 # CPU Perf
 + [Andi kleen perf](https://www.halobates.de/)
 + [Automatic Program Tuning](https://opentuner.org/tutorial/pldi2015/)
