@@ -89,4 +89,14 @@ else
    sleep ${delay}
 fi
 done
-``
+```
+
+## C/ C++ codes
+1. https://nullprogram.com/blog/2024/01/28/
+```
+#define assert(c)  while (!(c)) __builtin_trap()
+#define assert(c)  while (!(c)) __builtin_unreachable()
+#define assert(c)  while (!(c)) *(volatile int *)0 = 0
+#define assert(c)  do if (!(c)) __debugbreak(); while (0)
+#define breakpoint()  asm ("int3; nop")
+```
