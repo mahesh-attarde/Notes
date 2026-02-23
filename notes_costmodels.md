@@ -597,7 +597,112 @@ for (i=0; i<n; i++)
 ```
 TTI often makes gather/scalarization expensive → vectorization often rejected.
 
+
+
 ---
+
+## `CostKindCosts`
+- a mapping: `TargetCostKind -> InstructionCost`
+“fields” are effectively the **cost buckets** for each `TargetCostKind`.
+
+### 1) `RecipThroughput`
+**Meaning:** Estimated *steady-state throughput cost* (“how many cycles per iteration”, in a reciprocal-throughput sense), assuming pipelining and enough independent work.
+
+**Effect on LLVM:**
+- Dominant metric for **LoopVectorize** and **SLPVectorizer** under `-O2/-O3`.
+- Drives:
+  - vectorization factor (VF) selection
+  - unroll factor (UF) selection
+  - whether reductions stay vector and reduce at the end
+  - whether expensive shuffles/extracts are acceptable
+
+**X86 intuition:**
+- Penalizes:
+  - cross-lane shuffles (`vperm2f128`, some `vshufi32x4`, etc.)
+  - divides/sqrts
+- Rewards:
+  - using wide vectors when the backend has good throughput
+  - FMA (`vfmadd*`) vs separate mul+add
+
+### 2) `Latency`
+**Meaning:** Estimated *critical-path latency cost* if operations are dependent (chain-like).
+
+**Effect on LLVM:**
+- Used when the pass cares about dependency chains (less common than throughput in vectorizers).
+- Can make LLVM avoid transforms that increase the number of dependent steps even if throughput is fine.
+- Relevant for reduction chains (e.g., `sum = sum + ...`), because reductions are inherently dependency-heavy unless unrolled with multiple accumulators.
+
+**X86 intuition:**
+- A horizontal reduction tree adds shuffle+add stages; even if throughput is good, it might increase the critical path.
+- Latency cost can encourage:
+  - more partial accumulators (unroll) to break dependency chains
+  - different reduction trees
+
+### 3) `CodeSize`
+**Meaning:** Cost representing *code size impact* (often modeled roughly as instruction count / bytes, target-dependent).
+
+**Effect on LLVM:**
+- Dominant for size builds (`-Os`, `-Oz`) and some heuristics.
+- Discourages:
+  - vectorization/unrolling that increases instruction count
+  - expansions of intrinsics into long sequences
+  - if-conversion patterns that duplicate work
+
+**X86 intuition:**
+- AVX-512 instructions can be bigger; unrolling grows code fast.
+- A scalar loop with `imul` might be smaller than a shift/add expansion, even if expansion is faster.
+
+### 4) `SizeAndLatency`
+**Meaning:** A **combined heuristic** cost meant to be “reasonable for both size and latency”.
+
+**Effect on LLVM:**
+- Used when a pass wants one scalar cost but doesn’t want to optimize *only* for bytes or *only* for latency.
+- Often appears in heuristics where LLVM wants to stay conservative.
+- In practice it tends to:
+  - behave close to `CodeSize` in size-sensitive pipelines, but
+  - add penalties for very high-latency ops or long dependency chains
+
+**Important nuance:** there is **no single universal formula**. Each target can model it differently.
+
+
+### 5) `TCK_Unknown` / “default”
+Some LLVM versions have an “unknown/default” kind or treat “no kind provided” as a default (often throughput). This is not always stored as a real slot in `CostKindCosts`, but you may see logic like:
+- if kind is unknown, fall back to `RecipThroughput`
+- or compute a generic cost
+
+Effect: mostly an internal fallback behavior.
+
+## What is stored in each slot: `InstructionCost`
+Each “field” is an `InstructionCost`, not a plain integer, because it can represent:
+- a valid integer-like cost
+- **invalid/unknown** (target can’t model it)
+- scalable-vector related symbolic cost behavior (in newer LLVMs)
+- sometimes “cost is free” (0) for ops that fold away / are free due to addressing modes, etc.
+
+**Effect on passes:** if cost is invalid, passes often:
+- bail out of a transform, or
+- use conservative defaults.
+
+## How passes *use* `CostKindCosts` (effects you actually see)
+### Vectorization factor (VF) selection
+LoopVectorize will compare costs for multiple candidate VFs. The “objective function” depends on cost kind:
+- `RecipThroughput`: pick VF with lowest estimated cycles/iteration
+- `CodeSize`: pick smallest VF (or scalar)
+- `SizeAndLatency`: compromise; may still vectorize but with smaller VF/UF
+
+### Reduction strategy selection
+For reductions, LLVM evaluates alternatives:
+- reduce inside loop vs at exit
+- tree shapes (shuffle/add patterns)
+- using target intrinsics/patterns
+
+Costs come from TTI. If `RecipThroughput` is used, LLVM may accept some extra shuffles if it reduces loop trips a lot. Under `CodeSize`, it might keep scalar.
+
+### Unroll factor / multiple accumulators
+- `Latency` cost encourages breaking dependence chains (more accumulators, more unroll)
+- `CodeSize` discourages this
+- `RecipThroughput` balances it based on throughput model
+
 
 ---
 
