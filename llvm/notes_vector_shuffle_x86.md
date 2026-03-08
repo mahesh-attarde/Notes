@@ -16,7 +16,7 @@ Vector shuffles rearrange elements within SIMD vectors.  The X86 architecture pr
 
 ## Shuffle Operations
 
-### 1. PSHUFB - Packed Shuffle Bytes
+### 1. [PSHUFB](https://www.officedaytime.com/simd512e/simdimg/si.php?f=pshufb) - Packed Shuffle Bytes
 
 **Full Name**:  Packed Shuffle Bytes
 
@@ -30,7 +30,7 @@ Vector shuffles rearrange elements within SIMD vectors.  The X86 architecture pr
 | **Throughput** | 1 per cycle |
 
 **Description**:  
-Performs arbitrary byte-level permutation within 128-bit lanes using a control mask vector. Each byte in the mask selects which source byte appears in the result.  Setting bit 7 of a mask byte zeros that output position. 
+Performs arbitrary byte-level permutation within 128-bit lanes using a control mask vector(`Input: [A, B, C, D]`, `Mask: [3, 0, 1, 2]` -> `Result: [D, A, B, C]`). Each byte in the mask selects which source byte appears in the result.  Setting bit 7 of a mask byte zeros that output position(If the value is 128 or higher (which means bit 7 is "on" or 1), the CPU ignores the data entirely and just puts a 0 in that spot. or mask is [0, 1, 0x80, 0x80] result will be [Data[0], Data[1], 0, 0]).
 
 **LLVM Node**: `X86ISD::PSHUFB`
 
@@ -70,7 +70,7 @@ for i in 0..15:
 
 ---
 
-### 2. PSHUFD/PSHUFHW/PSHUFLW - Word/Dword Shuffles
+### 2. [PSHUFD](https://www.officedaytime.com/simd512e/simdimg/si.php?f=pshufd)/[PSHUFHW](https://www.officedaytime.com/simd512e/simdimg/si.php?f=pshufhw)/[PSHUFLW](https://www.officedaytime.com/simd512e/simdimg/si.php?f=pshuflw) - Word/Dword Shuffles
 
 **Full Name**:  Packed Shuffle Doublewords / High Words / Low Words
 
@@ -108,7 +108,22 @@ imm[7:6] → selects source for element 3
 | Reverse | `0x1B` | `[a3,a2,a1,a0]` |
 | Rotate left | `0x39` | `[a1,a2,a3,a0]` |
 
-**Example**:
+**Example1**:
+```llvm
+Input [A, B, C, D] (where A is index 0).
+immediate 0xE4 (11 10 01 00)
+
+Bits 0-1 are 00 -> Slot 0 gets A
+Bits 2-3 are 01 -> Slot 1 gets B
+Bits 4-5 are 10 -> Slot 2 gets C
+Bits 6-7 are 11 -> Slot 3 gets D
+
+Result: [A, B, C, D]
+
+If immediate 0x00 (00 00 00 00), the result is [A, A, A, A]. This is a "Broadcast.
+```
+
+**Example2**:
 ```llvm
 ; Broadcast element 0 to all positions
 %result = shufflevector <4 x i32> %v, <4 x i32> undef,
@@ -129,14 +144,14 @@ imm[7:6] → selects source for element 3
 
 | Variant | Element Size | Control | ISA |
 |---------|-------------|---------|-----|
-| `PBLENDW` | 16-bit | Immediate | SSE4.1 |
-| `BLENDPS` | 32-bit float | Immediate | SSE4.1 |
-| `BLENDPD` | 64-bit double | Immediate | SSE4.1 |
-| `PBLENDVB` | 8-bit | Variable (XMM0) | SSE4.1 |
-| `BLENDVPS` | 32-bit float | Variable (XMM0) | SSE4.1 |
-| `BLENDVPD` | 64-bit double | Variable (XMM0) | SSE4.1 |
+| [PBLENDW](https://www.officedaytime.com/simd512e/simdimg/si.php?f=pblendw)   | 16-bit | Immediate | SSE4.1 |
+| [BLENDPS](https://www.officedaytime.com/simd512e/simdimg/si.php?f=blendps)   | 32-bit float | Immediate | SSE4.1 |
+| [BLENDPD](https://www.officedaytime.com/simd512e/simdimg/si.php?f=blendpd)   | 64-bit double | Immediate | SSE4.1 |
+| [PBLENDVB](https://www.officedaytime.com/simd512e/simdimg/si.php?f=pblendvb) | 8-bit | Variable (XMM0) | SSE4.1 |
+| [BLENDVPS](https://www.officedaytime.com/simd512e/simdimg/si.php?f=blendvps) | 32-bit float | Variable (XMM0) | SSE4.1 |
+| [BLENDVPD](https://www.officedaytime.com/simd512e/simdimg/si.php?f=blendvpd) | 64-bit double | Variable (XMM0) | SSE4.1 |
 | `VBLENDPS` | 32-bit float | Immediate | AVX |
-| `VPBLENDMD` | 32-bit | Mask register | AVX-512 |
+| [VPBLENDMD](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vpblendmd) | 32-bit | Mask register | AVX-512 |
 
 **Description**:  
 Selects elements from two source vectors based on an immediate mask or variable condition. Immediate blends use a bit mask; variable blends use the sign bit of each element in the mask vector.
@@ -186,18 +201,18 @@ for i in 0..N:
 
 | Variant | Operation | Element Sizes |
 |---------|-----------|---------------|
-| `PUNPCKLBW` | Unpack low bytes | 8-bit |
-| `PUNPCKHBW` | Unpack high bytes | 8-bit |
-| `PUNPCKLWD` | Unpack low words | 16-bit |
-| `PUNPCKHWD` | Unpack high words | 16-bit |
-| `PUNPCKLDQ` | Unpack low dwords | 32-bit |
-| `PUNPCKHDQ` | Unpack high dwords | 32-bit |
-| `PUNPCKLQDQ` | Unpack low qwords | 64-bit |
-| `PUNPCKHQDQ` | Unpack high qwords | 64-bit |
-| `UNPCKLPS` | Unpack low singles | 32-bit float |
-| `UNPCKHPS` | Unpack high singles | 32-bit float |
-| `UNPCKLPD` | Unpack low doubles | 64-bit double |
-| `UNPCKHPD` | Unpack high doubles | 64-bit double |
+| [PUNPCKLBW](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=punpcklbw) | Unpack low bytes | 8-bit |
+| [PUNPCKHBW](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=punpckhbw) | Unpack high bytes | 8-bit |
+| [PUNPCKLWD](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=punpcklwd) | Unpack low words | 16-bit |
+| [PUNPCKHWD](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=punpckhwd) | Unpack high words | 16-bit |
+| [PUNPCKLDQ](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=punpckldq) | Unpack low dwords | 32-bit |
+| [PUNPCKHDQ](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=punpckhdq) | Unpack high dwords | 32-bit |
+| [PUNPCKLQDQ](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=punpcklqdq) | Unpack low qwords | 64-bit |
+| [PUNPCKHQDQ](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=punpckhqdq) | Unpack high qwords | 64-bit |
+| [UNPCKLPS](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=unpcklps) | Unpack low singles | 32-bit float |
+| [UNPCKHPS](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=unpckhps) | Unpack high singles | 32-bit float |
+| [UNPCKLPD](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=unpcklpd) | Unpack low doubles | 64-bit double |
+| [UNPCKHPD](https://www.officedaytime.com/simd512e/simdimg/unpack.php?f=unpckhpd) | Unpack high doubles | 64-bit double |
 
 **Description**:  
 Interleaves elements from the low (UNPCKL) or high (UNPCKH) halves of two vectors. Essential for transposition and AoS/SoA conversions.
@@ -270,14 +285,14 @@ UNPCKH (high elements):
 
 | Instruction | Element Size | Sources | ISA |
 |-------------|-------------|---------|-----|
-| `VPERMD` | 32-bit int | 1 | AVX2 |
-| `VPERMPS` | 32-bit float | 1 | AVX2 |
-| `VPERMQ` | 64-bit int | 1 (imm) | AVX2 |
-| `VPERMPD` | 64-bit double | 1 (imm) | AVX2 |
-| `VPERMI2D` | 32-bit | 2 | AVX-512 |
-| `VPERMT2D` | 32-bit | 2 | AVX-512 |
-| `VPERMI2PS` | 32-bit float | 2 | AVX-512 |
-| `VPERMT2PS` | 32-bit float | 2 | AVX-512 |
+| [VPERMD](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vpermd) | 32-bit int | 1 | AVX2 |
+| [VPERMPS](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vpermd) | 32-bit float | 1 | AVX2 |
+| [VPERMQ](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vpermq) | 64-bit int | 1 (imm) | AVX2 |
+| [VPERMPD](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vpermq) | 64-bit double | 1 (imm) | AVX2 |
+| [VPERMI2D](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vpermi2d) | 32-bit | 2 | AVX-512 |
+| [VPERMT2D](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vpermt2d) | 32-bit | 2 | AVX-512 |
+| [VPERMI2PS](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vpermi2d) | 32-bit float | 2 | AVX-512 |
+| [VPERMT2PS](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vpermt2d) | 32-bit float | 2 | AVX-512 |
 
 **Description**:  
 Full cross-lane permutation using an index vector. Unlike lane-constrained shuffles, VPERM can move any element to any position across the entire vector.
@@ -327,8 +342,8 @@ for i in 0..7:
 
 | Instruction | Vector Size | ISA |
 |-------------|-------------|-----|
-| `VPERM2F128` | 256-bit float | AVX |
-| `VPERM2I128` | 256-bit int | AVX2 |
+| [VPERM2F128](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vperm2f128) | 256-bit float | AVX |
+| [VPERM2I128](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vperm2f128) | 256-bit int | AVX2 |
 | `VSHUF32X4` | 512-bit (128-bit granularity) | AVX-512 |
 | `VSHUF64X2` | 512-bit (128-bit granularity) | AVX-512 |
 
@@ -381,8 +396,8 @@ Bit [7]: Zero result[255:128] if set
 
 | Instruction | Element Size | ISA |
 |-------------|-------------|-----|
-| `SHUFPS` | 32-bit float | SSE |
-| `SHUFPD` | 64-bit double | SSE2 |
+| [SHUFPS](https://www.officedaytime.com/simd512e/simdimg/si.php?f=shufps) | 32-bit float | SSE |
+| [SHUFPD](https://www.officedaytime.com/simd512e/simdimg/si.php?f=shufpd) | 64-bit double | SSE2 |
 | `VSHUFPS` | 32-bit float | AVX |
 | `VSHUFPD` | 64-bit double | AVX |
 
@@ -425,8 +440,8 @@ result[3] = src2[imm[7:6]]
 
 | Instruction | Element Size | Control | ISA |
 |-------------|-------------|---------|-----|
-| `VPERMILPS` | 32-bit float | Immediate or vector | AVX |
-| `VPERMILPD` | 64-bit double | Immediate or vector | AVX |
+| [VPERMILPS](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vpermilps) | 32-bit float | Immediate or vector | AVX |
+| [VPERMILPD](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vpermilpd)  | 64-bit double | Immediate or vector | AVX |
 
 **Description**:  
 Permutes floating-point elements within each 128-bit lane independently. Does not cross lane boundaries.
@@ -472,10 +487,10 @@ for i in 0..3:  // VPERMILPS
 
 | Instruction | Granularity | ISA |
 |-------------|------------|-----|
-| `PALIGNR` | Byte | SSSE3 |
+| [PALIGNR](https://www.officedaytime.com/simd512e/simdimg/si.php?f=palignr) | Byte | SSSE3 |
 | `VPALIGNR` | Byte (per lane) | AVX |
-| `VALIGND` | Dword | AVX-512 |
-| `VALIGNQ` | Qword | AVX-512 |
+| [VALIGND](https://www.officedaytime.com/simd512e/simdimg/si.php?f=valignd) | Dword | AVX-512 |
+| [VALIGNQ](https://www.officedaytime.com/simd512e/simdimg/si.php?f=valignq) | Qword | AVX-512 |
 
 **Description**:  
 Concatenates two vectors and extracts a shifted portion.  PALIGNR concatenates, shifts right by immediate bytes, and takes the low portion. 
@@ -522,13 +537,13 @@ result = result[127:0]                           // Take low 128 bits
 
 | Instruction | Source | Destination | ISA |
 |-------------|--------|-------------|-----|
-| `VBROADCASTSS` | 32-bit mem/xmm | xmm/ymm/zmm | AVX |
-| `VBROADCASTSD` | 64-bit mem/xmm | ymm/zmm | AVX |
-| `VBROADCASTF128` | 128-bit mem | ymm | AVX |
-| `VPBROADCASTB` | 8-bit | xmm/ymm/zmm | AVX2 |
-| `VPBROADCASTW` | 16-bit | xmm/ymm/zmm | AVX2 |
-| `VPBROADCASTD` | 32-bit | xmm/ymm/zmm | AVX2 |
-| `VPBROADCASTQ` | 64-bit | xmm/ymm/zmm | AVX2 |
+| [VBROADCASTSS](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vbroadcastss) | 32-bit mem/xmm | xmm/ymm/zmm | AVX |
+| [VBROADCASTSD](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vbroadcastsd) | 64-bit mem/xmm | ymm/zmm | AVX |
+| [VBROADCASTF128](https://www.officedaytime.com/simd512e/simdimg/si.php?f=vbroadcastf128) | 128-bit mem | ymm | AVX |
+| [VPBROADCASTB](https://www.officedaytime.com/simd512e/simdimg/vpbroadcast.php?f=vpbroadcastb) | 8-bit | xmm/ymm/zmm | AVX2 |
+| [VPBROADCASTW](https://www.officedaytime.com/simd512e/simdimg/vpbroadcast.php?f=vpbroadcastw) | 16-bit | xmm/ymm/zmm | AVX2 |
+| [VPBROADCASTD](https://www.officedaytime.com/simd512e/simdimg/vpbroadcast.php?f=vpbroadcastd) | 32-bit | xmm/ymm/zmm | AVX2 |
+| [VPBROADCASTQ](https://www.officedaytime.com/simd512e/simdimg/vpbroadcast.php?f=vpbroadcastq) | 64-bit | xmm/ymm/zmm | AVX2 |
 
 **Description**:  
 Replicates a scalar or small vector to fill an entire vector register. Very efficient, especially when combined with memory operands.
@@ -572,13 +587,13 @@ VBROADCASTM,
 
 | Instruction | Operation | Result Pattern |
 |-------------|-----------|----------------|
-| `MOVDDUP` | Duplicate low qword | `[a0, a0]` |
-| `MOVSHDUP` | Duplicate odd elements | `[a3, a3, a1, a1]` |
-| `MOVSLDUP` | Duplicate even elements | `[a2, a2, a0, a0]` |
-| `MOVLHPS` | Move low to high | `[b1, b0, a1, a0]` |
-| `MOVHLPS` | Move high to low | `[a3, a2, b3, b2]` |
-| `MOVSD` | Move scalar double | Scalar insert |
-| `MOVSS` | Move scalar single | Scalar insert |
+| [MOVDDUP](https://www.officedaytime.com/simd512e/simdimg/si.php?f=movddup) | Duplicate low qword | `[a0, a0]` |
+| [MOVSHDUP](https://www.officedaytime.com/simd512e/simdimg/si.php?f=movshdup) | Duplicate odd elements | `[a3, a3, a1, a1]` |
+| [MOVSLDUP](https://www.officedaytime.com/simd512e/simdimg/si.php?f=movsldup) | Duplicate even elements | `[a2, a2, a0, a0]` |
+| [MOVLHPS](https://www.officedaytime.com/simd512e/simdimg/si.php?f=movlhps) | Move low to high | `[b1, b0, a1, a0]` |
+| [MOVHLPS](https://www.officedaytime.com/simd512e/simdimg/si.php?f=movhlps) | Move high to low | `[a3, a2, b3, b2]` |
+| [MOVSD](https://www.officedaytime.com/simd512e/simdimg/si.php?f=movsd) | Move scalar double | Scalar insert |
+| [MOVSS](https://www.officedaytime.com/simd512e/simdimg/si.php?f=movss) | Move scalar single | Scalar insert |
 
 **LLVM Nodes**:
 ```cpp
@@ -618,10 +633,10 @@ MOVSH,
 
 | Instruction | From | To | Saturation |
 |-------------|------|-----|-----------|
-| `PACKSSWB` | 16-bit | 8-bit | Signed |
-| `PACKSSDW` | 32-bit | 16-bit | Signed |
-| `PACKUSWB` | 16-bit | 8-bit | Unsigned |
-| `PACKUSDW` | 32-bit | 16-bit | Unsigned |
+| [PACKSSWB](https://www.officedaytime.com/simd512e/simdimg/si.php?f=packsswb) | 16-bit | 8-bit | Signed |
+| [PACKSSDW](https://www.officedaytime.com/simd512e/simdimg/si.php?f=packssdw) | 32-bit | 16-bit | Signed |
+| [PACKUSWB](https://www.officedaytime.com/simd512e/simdimg/si.php?f=packsswb) | 16-bit | 8-bit | Unsigned |
+| [PACKUSDW](https://www.officedaytime.com/simd512e/simdimg/si.php?f=packssdw) | 32-bit | 16-bit | Unsigned |
 
 **Description**:  
 Narrows elements from two source vectors into a single destination vector with saturation.
