@@ -1,18 +1,20 @@
-# Search Clang Doc
+## Search Clang Doc
 + [https://clang.llvm.org/docs/search.html](Clang Option Search)
 + https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html
 + https://gcc.gnu.org/onlinedocs/gcc/Invoking-GCC.html
 + https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
 + How to repro bug FE/MIDDLE END /BE with LTO and Windows https://llvm.org/docs/HowToSubmitABug.html
-# LLVM ENABLE CRASH DIAGNOSTIC
+
+
+## LLVM ENABLE CRASH DIAGNOSTIC
 + `export LLVM_ENABLE_DUMP=1`
-# Print All passes enabled
+## Print All passes enabled
 ```
 $opt=-O0
 echo 'int;' | clang -xc $opt  - -o /dev/null -###
 ```
 + https://clang.llvm.org/docs/ClangCommandLineReference.html
-# Print clang options, default values
+## Print clang options, default values
 ```
 echo 'int;' | clang -xc - -o /dev/null -mllvm -print-all-options
 clang -help
@@ -40,7 +42,7 @@ clang -O0 -emit-llvm -Xclang -disable-llvm-passes -S  bug.c -o bug.ll
 opt bug.ll -o bug.opt.ll -passes='sroa,instcombine,loop(loop-rotate,indvars),dot-cfg' -S
 ```
 
-# CLANG/LLC
+## CLANG/LLC
  + To pass target specific option to clang and llc
 ```
 clang -mavx/-mavx512f test.c -S
@@ -123,6 +125,26 @@ clang test.c -O2 -mllvm -print-changed
 opt test.ll -O2 -print-changed
 llc test.ll  -print-changed
 ```
+## OPT-BISECT https://llvm.org/docs/OptBisect.html
++ llvm/lib/IR/OptBisect.cpp
++ Turn off BISECT message `-opt-bisect-verbose=false` otherwise writes to error stream
+  ```
+  # When using lld, or ld64 (macOS)
+  clang -flto -Wl,-mllvm,-opt-bisect-limit=256 my_file.o my_other_file.o
+  # When using Gold
+  clang -flto -Wl,-plugin-opt,-opt-bisect-limit=256 my_file.o my_other_file.o
+  opt -O2 -o test-opt.bc -opt-bisect-limit=16 test.ll
+  llc -O2 -o test-opt.bc -opt-bisect-limit=16  -o test.o
+  clang  -Wl,-plugin-opt,-Paramter=Val
+         -Wl,-plugin-opt,-filter-print-funcs=FUNC
+         -Wl,-plugin-opt,-print-before=passname
+         -Wl,-plugin-opt,-print-after=passname
+         -Wl,-plugin-opt=-opt-bisect-verbose=false
+         -Wl,-plugin-opt=save-temps
+         -Xlinker -plugin-opt=-opt-bisect-limit=-1
+         -flto
+  ```
++ Disable opt pass `-opt-disable=passname,passname1`
 
 ## PERF ISSUE OPTIONS
 # FE Alignment Options
