@@ -41,7 +41,15 @@ clang -E -dM  <source>   # does not need emit-llvm etc.
 clang -O0 -emit-llvm -Xclang -disable-llvm-passes -S  bug.c -o bug.ll
 opt bug.ll -o bug.opt.ll -passes='sroa,instcombine,loop(loop-rotate,indvars),dot-cfg' -S
 ```
-
++ Add debug location as comment
+```
+ -print-inst-debug-locs -emit-llvm
+ %mul = mul nsw i32 %0, %1, !dbg !19 ; example.c:3:16
+-print-inst-addrs
+  %mul = mul nsw i32 %0, %1, !dbg !19 ; 0x21bbe1d0
+-print-sdnode-addrs
+-print-mi-addrs
+```
 ## CLANG/LLC
  + To pass target specific option to clang and llc
 ```
@@ -185,6 +193,10 @@ llc test.ll  -print-changed
 + add '--debug-only=gisel-emitter` and `--debug` 
 + Supports statistics
 
+## LLVM BUILD DEBUG
++ export VERBOSE=1
++ Find command in ninja : ninja -t commands program | grep filename
+  
 ## GCC Options
 * Check Default options 
   + Check default target options/features enabled or disabled  `-Q --help=target`
