@@ -52,3 +52,5 @@
 + https://insights.linuxfoundation.org/leaderboards
 + https://ossinsight.io/
 
+## Deep learning
++ https://udlbook.github.io/udlbook/ deep resource with notebooks,tricks
