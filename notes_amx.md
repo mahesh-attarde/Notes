@@ -1,5 +1,5 @@
 # AMX
-+ https://proc-cpuinfo.fixstars.com/2025/08/amx-introduction/
++ https://proc-cpuinfo.fixstars.com/2025/08/amx-introduction/ https://blog.us.fixstars.com/intel-amx-advanced-matrix-extension-explained-introduction/ eng
 + https://proc-cpuinfo.fixstars.com/2025/12/amx-advanced/
   
 # AMX Compiler
