@@ -1,4 +1,4 @@
-// COMPILE: icx -g amx_int8.c -o amx_int8 -O2 -march=sapphirerapids  -fno-strict-aliasing
+// COMPILE: icx -g amx_int8.c -o amx_int8 -O2 -march=emeraldrapids  -fno-strict-aliasing
 // RUN: ./amx_int8
 
 // SDE: sde64 -spr -debugtrace -- ./amx_int8
@@ -69,10 +69,11 @@ void int8_matmul(){
   const int M = 16;
   const int N = 16;
   const int K = 16;
+  const int KGroups = K / 4;
 
   alignas(64)  int8_t SrcA[M*K];
   alignas(64) uint8_t SrcB[K*N];
-  alignas(64) uint32_t DstC[M*N];
+  alignas(64) int32_t DstC[M*N];
   tilecfg_t cfg;
 
   for (int i = 0; i < M * K; i++) 
@@ -85,21 +86,34 @@ void int8_matmul(){
   memset(&cfg, 0, sizeof(cfg));
   cfg.palette_id = 1;
   cfg.start_row = 0;
-
+  // A: int8 matrix  (M x K)
   cfg.rows[0] = M;
   cfg.colsb[0] = K;
-  cfg.rows[1] = K;
-  cfg.colsb[1] = N;
+  // B uint8 matrix (K x N) - stored in 4 groups of K/4 rows,
+  // each group containing 4 columns (4 bytes) per row
+
+  cfg.rows[1] = KGroups;
+  cfg.colsb[1] = N * 4;
+  
   cfg.rows[2] = M;
-  cfg.colsb[2] = N;
+  cfg.colsb[2] = N * 4;
 
   _tile_loadconfig(&cfg);
   _tile_zero(2);
-  _tile_loadd(0, SrcA, 16);
-  _tile_loadd(1, SrcB, 16);
-   // tdpbusd: C += A(int8) * B(uint8) dot-products
-  //_tile_dpbusd(2, 0, 1);
-  _tile_stored(2, DstC, 16*4);
+  _tile_loadd(0, SrcA, K);
+  _tile_loadd(1, SrcB, N * 4);
+  // tdpbusd: C += A(int8) * B(uint8) dot-products
+  // DPBD consumes dword in single iteration, so B is stored in 4 groups of K/4 rows, 
+  // each group containing 4 columns (4 bytes) per row
+  // Constraints for config are:
+  // - A: int8 matrix  (M x K) -> rows[0] = M, colsb[0] = K
+  // - B: uint8 matrix (K x N) -> rows[1] = K/4, colsb[1] = N*4
+  // - C: int32 matrix (M x N) -> rows[2] = M, colsb[2] = N*4 (since each int32 is 4 bytes)
+  // A.ROWS == C.ROWS -> rows[0] == rows[2] -> M
+  // B.ROWS * 4 == A.COLS -> rows[1] * 4 == colsb[0] -> (K/4)*4 == K
+  // C.ROWS == A.ROWS -> rows[2] == rows[0] -> M
+  _tile_dpbusd(2, 0, 1);
+  _tile_stored(2, DstC, N * 4);
 
   _tile_release();
    tile_print((int32_t*)DstC, M, N, N);
@@ -108,7 +122,8 @@ void int8_matmul(){
 int main(){
   if (arch_prctl_req_tiledata() != 0) {
     fprintf(stderr, " No AMX HW or OS Support!.\n");
+    return 1;
   }
   int8_matmul();
-    return 0;
+  return 0;
 }
