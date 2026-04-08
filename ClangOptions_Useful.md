@@ -154,6 +154,22 @@ llc test.ll  -print-changed
   ```
 + Disable opt pass `-opt-disable=passname,passname1`
 
+### DEBUG MIR
++ For "LLVM: Machine Code Errors"
++ Error take form
+  - Register / liveness issues `use of undefined physreg/virtreg` `subregister lane mismatch` `killed flag incorrect`
+  - Illegal instruction operands `wrong operand type (imm vs reg)` `constraints violated (target-specific)`
+  - Broken CFG / PHI `PHI operands not matching predecessor blocks` `illegal critical edge assumptions`
+  - Stack frame / call convention mismatches `bad regmask around calls` `wrong callee-saved restoration`
+  - Debug-info related verifier errors `invalid DBG_VALUE location after regalloc`
+  
+   Print Verify Log with Faulty MIR `llc input.ll -o /dev/null -verify-machineinstrs -debug-only=machineverifier`
+   Verify Each `llc input.ll -o /dev/null -verify-machineinstrs -verify-each`
+   Print MIR `llc input.ll -o /dev/null -print-machineinstrs`
+   Run MIR Verify on file `llc -run-pass=none -o /dev/null -verify-machineinstrs  something.mir`
+   Use Symbols for stack `LLVM_SYMBOLIZER_PATH=/path/to/llvm-symbolizer  llc input.ll -o /dev/null -verify-machineinstrs -debug-only=machineverifier`
+   LLVM Reduce `llvm-reduce --test="llc reduced.ll -o /dev/null -verify-machineinstrs" input.ll`
+   bugpoint `bugpoint --run-llc --llc-args="-verify-machineinstrs" input.ll`
 ## PERF ISSUE OPTIONS
 # FE Alignment Options
 ```
